@@ -8,7 +8,10 @@ import pymongo
 
 from scrapy.conf import settings
 from scrapy.exceptions import DropItem
-from scrapy import log
+from lianjia.items import LianjiaHouseItem
+from lianjia.items import LianjiaHouseImageItem
+# from scrapy import log
+import logging
 
 
 class LianjiaMongoPipeline(object):
@@ -19,17 +22,25 @@ class LianjiaMongoPipeline(object):
             settings['MONGODB_PORT']
         )
         db = connection[settings['MONGODB_DB']]
-        self.collection = db[settings['MONGODB_COLLECTION']]
+        self.db = db
+        self.defaultCollection = db[settings['MONGODB_COLLECTION']]
 
     def process_item(self, item, spider):
         valid = True
+        isExist = False
+        collection = self.defaultCollection
         for data in item:
             if not data:
                 valid = False
                 raise DropItem("Missing {0}!".format(data))
-        isExist = self.collection.find_one({'lianjia_id': item['lianjia_id']})
+        if isinstance(item, LianjiaHouseItem):
+            isExist = collection.find_one({'lianjia_id': item['lianjia_id']})
+        if isinstance(item, LianjiaHouseImageItem):
+            collection = self.db['house_images']
+            isExist = collection.find_one({'lianjia_id': item['lianjia_id']})
         if not isExist:
-            self.collection.insert(dict(item))
+            # log.msg(str(item) + ' need insert', level=log.DEBUG)
+            collection.insert(dict(item))
         else:
-            log.msg(item['lianjia_id'] + ' is exist', level=log.DEBUG)
+            logging.debug(item['lianjia_id'] + ' is exist')
         return item

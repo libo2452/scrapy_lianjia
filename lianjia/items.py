@@ -19,6 +19,7 @@ class LianjiaHouseItem(scrapy.Item):
 
 
 class LianjiaHouseImageItem(scrapy.Item):
+    lianjia_id = scrapy.Field()
     image_urls = scrapy.Field()
     images = scrapy.Field()
     image_paths = scrapy.Field()

@@ -5,8 +5,10 @@ import sys
 from scrapy.http import Request
 from lianjia.items import LianjiaHouseItem
 from lianjia.items import LianjiaHouseImageItem
+from scrapy.exceptions import CloseSpider
 from bs4 import BeautifulSoup
 import json
+import logging
 reload(sys)
 sys.setdefaultencoding("utf-8")
 
@@ -15,14 +17,20 @@ class Myspider(scrapy.Spider):
     name = 'lianjia'
     allowed_domains = ['dg.lianjia.com']
     bash_url = 'http://dg.lianjia.com/ershoufang/'
+    handle_httpstatus_list = [302]
     image_urls = []
 
     def start_requests(self):
-        # yield Request(self.bash_url, self.parse)
-        detail_url = 'http://dg.lianjia.com/ershoufang/DG0002394497.html'
-        yield Request(detail_url, self.parse_hosue_detail)
+        yield Request(self.bash_url, self.parse)
+        # detail_url = 'http://dg.lianjia.com/ershoufang/DG0002286711.html'
+        # yield Request(detail_url, self.parse_hosue_detail, meta={'house_link': detail_url})
 
     def parse(self, response):
+        if(response.status == 302):
+            print response.headers['Location']
+            raise CloseSpider('need to pass the verify')
+        logging.info(response.text)
+        logging.info(response.headers)
         soup = BeautifulSoup(response.text, 'lxml')
         page_num_list = soup.find('div', {'class': 'house-lst-page-box'}).attrs['page-data']
         jsonstr = json.loads(page_num_list)
@@ -38,6 +46,8 @@ class Myspider(scrapy.Spider):
         # .find('div', class_='house-lst-page-box')
 
     def parse_houselist(self, response):
+        if(response.status == 302):
+            raise CloseSpider('need to pass the verify')
         # print(response.text)
         print 'parse start'
         soup = BeautifulSoup(response.text, 'lxml')
@@ -74,24 +84,31 @@ class Myspider(scrapy.Spider):
             house['link'] = house_link
             house['price'] = house_price
             house['unit_price'] = house_unit_price
+            yield Request(house_link, callback=self.parse_hosue_detail, meta={'house_link': house_link})
             yield house
 
     def parse_hosue_detail(self, response):
+        if(response.status == 302):
+            raise CloseSpider('need to pass the verify')
+        house_link = response.meta['house_link']
+        tmp_start = house_link.rfind('/') + 1
+        tmp_end = house_link.find('.html')
+        lianjia_id = house_link[tmp_start:tmp_end]
         print 'parse_hosue_detail start'
         soup = BeautifulSoup(response.text, 'lxml')
         house_img_list = soup.find('ul', {'class': 'smallpic'}).findAll('li')
         imageArr = []
         for house_img in house_img_list:
-            print house_img
-
-            print house_img.attrs['data-src']
+            # print house_img
+            # print house_img.attrs['data-src']
             imageArr.append(house_img.attrs['data-src'])
             # item['image_urls'] = house_img.attrs['data-src']
             # print item['image_urls']
             # yield item
             self.image_urls.append(house_img.attrs['data-src'])
-        print self.image_urls
+        # print self.image_urls
         item = LianjiaHouseImageItem()
         item['image_urls'] = imageArr
+        item['lianjia_id'] = lianjia_id
         return item
         # yield item
